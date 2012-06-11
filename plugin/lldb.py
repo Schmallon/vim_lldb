@@ -4,14 +4,16 @@ import time
 import tempfile
 import unittest
 
-def run_target(target_filename):
-  debugger = lldb.SBDebugger.Create()
-  debugger.SetAsync(False)
-  target = debugger.CreateTarget(target_filename)
-  if not target:
-    raise "Failed to get a target"
 
-  process = target.LaunchSimple (None, None, os.getcwd())
+class LLDBPlugin(object):
+  def run_target(self, target_filename):
+    debugger = lldb.SBDebugger.Create()
+    debugger.SetAsync(False)
+    target = debugger.CreateTarget(target_filename)
+    if not target:
+      raise "Failed to get a target"
+
+    process = target.LaunchSimple (None, None, os.getcwd())
 
 class TestLLDBPlugin(unittest.TestCase):
   def test(self):
@@ -30,7 +32,9 @@ class TestLLDBPlugin(unittest.TestCase):
     out_name = os.path.join(temp_dir, "binary")
     os.system("clang -g -x c %s -o %s" % (source_file.name, out_name))
 
-    run_target(out_name)
+    plugin = LLDBPlugin()
+    plugin.run_target(out_name)
+
 
 def run_lldb_tests():
   suite = unittest.TestLoader().loadTestsFromTestCase(TestLLDBPlugin)
