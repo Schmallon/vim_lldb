@@ -13,6 +13,7 @@ class LLDBPlugin(object):
 
   def __init__(self):
     self.target = None
+    vim.command("highlight lldb_current_location ctermbg=6 gui=undercurl guisp=DarkCyan")
 
   def create_target(self, target_filename):
     debugger = lldb.SBDebugger.Create()
@@ -43,11 +44,27 @@ class LLDBPlugin(object):
       #vim.eval("append('$', %s)" % "foo")#to_vim_string(breakpoint))
     vim.command("normal ggdd")
 
+  def launch(self):
+    self.process = self.target.LaunchSimple(None, None, os.getcwd())
+    self.highlight_current_location()
+
+  def highlight_current_location(self):
+    vim.command("syntax clear lldb_current_location")
+    for thread in self.process:
+      frame = thread.GetFrameAtIndex(0)
+      line_entry = frame.GetLineEntry()
+      line = line_entry.GetLine()
+      column = line_entry.GetColumn()
+      pattern = '\%' + str(line) + 'l' + '\%' \
+          + str(column) + 'c' + '.*' # + '\%' + str(5) + 'c'
+      vim.command("syntax match lldb_current_location /%s/" % pattern)
+
+
 
 
 class TestLLDBPlugin(unittest.TestCase):
 
-  def create_target(self):
+  def setUp(self):
     c_source = """int main()
 {
   return 0;
@@ -55,41 +72,43 @@ class TestLLDBPlugin(unittest.TestCase):
 """
 
     temp_dir = tempfile.mkdtemp()
-    source_filename = os.path.join(temp_dir, "main.c")
-    with open(source_filename, "w") as f:
+    self.source_filename = os.path.join(temp_dir, "main.c")
+    with open(self.source_filename, "w") as f:
       f.write(c_source)
 
-    out_name = os.path.join(temp_dir, "binary")
-    os.system("clang -g -x c %s -o %s" % (source_filename, out_name))
+    self.target_filename = os.path.join(temp_dir, "binary")
+    os.system("clang -g -x c %s -o %s" % (self.source_filename, self.target_filename))
 
-    return out_name
+    vim.command("bufdo! bdelete!")
+    vim.command("e %s" % self.source_filename)
+
 
 
   def test_can_run_target(self):
     plugin = LLDBPlugin()
-    plugin.create_target(self.create_target())
+    plugin.create_target(self.target_filename)
 
   def test_breakpoint_list_is_initially_empty(self):
     plugin = LLDBPlugin()
-    plugin.create_target(self.create_target())
+    plugin.create_target(self.target_filename)
     self.assertEquals(
       list(plugin.breakpoint_list()), [])
 
   def test_can_add_breakpoint(self):
     plugin = LLDBPlugin()
-    plugin.create_target(self.create_target())
+    plugin.create_target(self.target_filename)
     plugin.add_breakpoint("main")
 
   def test_breakpoint_list_contains_added_breakoint(self):
     plugin = LLDBPlugin()
-    plugin.create_target(self.create_target())
+    plugin.create_target(self.target_filename)
     plugin.add_breakpoint("main")
     self.assertNotEquals(
       list(plugin.breakpoint_list()), [])
 
   def test_breakpoint_window_shows_breakpoint(self):
     plugin = LLDBPlugin()
-    plugin.create_target(self.create_target())
+    plugin.create_target(self.target_filename)
     plugin.add_breakpoint("main")
     plugin.show_breakpoint_window()
     self.assertEquals(
@@ -98,6 +117,18 @@ class TestLLDBPlugin(unittest.TestCase):
 
   def test_add_breakpoint_on_current_line(self):
     pass
+
+
+  def test_highlight_current_location(self):
+    plugin = LLDBPlugin()
+    plugin.create_target(self.target_filename)
+    plugin.add_breakpoint("main")
+    plugin.launch()
+    vim.command("normal 3G2l")
+    self.assertEquals(
+      vim.eval('synIDattr(synID(3, 3, 1),"name")'),
+      "lldb_current_location")
+
 
 
 def run_lldb_tests():
