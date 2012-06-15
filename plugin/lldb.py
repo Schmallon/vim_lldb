@@ -48,6 +48,10 @@ class LLDBPlugin(object):
     self.process = self.target.LaunchSimple(None, None, os.getcwd())
     self.highlight_current_location()
 
+  def step_into(self):
+    self.process.GetSelectedThread().StepInto()
+    self.highlight_current_location()
+
   def highlight_current_location(self):
     vim.command("syntax clear lldb_current_location")
     for thread in self.process:
@@ -65,9 +69,14 @@ class LLDBPlugin(object):
 class TestLLDBPlugin(unittest.TestCase):
 
   def setUp(self):
-    c_source = """int main()
+    c_source = """int f()
 {
   return 0;
+}
+
+int main()
+{
+  return f();
 }
 """
 
@@ -113,22 +122,26 @@ class TestLLDBPlugin(unittest.TestCase):
     plugin.show_breakpoint_window()
     self.assertEquals(
         vim.eval("getline(1, '$')"),
-        ["main.c:3:3"])
-
-  def test_add_breakpoint_on_current_line(self):
-    pass
-
+        ["main.c:8:10"])
 
   def test_highlight_current_location(self):
     plugin = LLDBPlugin()
     plugin.create_target(self.target_filename)
     plugin.add_breakpoint("main")
     plugin.launch()
-    vim.command("normal 3G2l")
+    self.assertEquals(
+      vim.eval('synIDattr(synID(8, 10, 1),"name")'),
+      "lldb_current_location")
+
+  def test_step_into(self):
+    plugin = LLDBPlugin()
+    plugin.create_target(self.target_filename)
+    plugin.add_breakpoint("main")
+    plugin.launch()
+    plugin.step_into()
     self.assertEquals(
       vim.eval('synIDattr(synID(3, 3, 1),"name")'),
       "lldb_current_location")
-
 
 
 def run_lldb_tests():
