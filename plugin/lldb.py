@@ -36,12 +36,23 @@ class LLDBPlugin(object):
   def add_breakpoint(self, name):
     self.target.BreakpointCreateByName(name)
 
-  def show_breakpoint_window(self):
-    buffer_number = vim.eval("bufnr('lldb_breakoints', 1)")
+  def _edit_buffer_named(self, buffer_name):
+    buffer_number = vim.eval("bufnr('%s', 1)" % buffer_name)
     vim.command("buffer %s" % buffer_number)
+
+  def show_breakpoint_window(self):
+    self._edit_buffer_named('lldb_breakpoints')
     for breakpoint in self.breakpoint_list():
       vim.eval("append('$', %s)" % to_vim_string(breakpoint))#to_vim_string(breakpoint))
       #vim.eval("append('$', %s)" % "foo")#to_vim_string(breakpoint))
+    vim.command("normal ggdd")
+
+
+  def show_locals_window(self):
+    self._edit_buffer_named('lldb_variables')
+    variables = self.process.GetSelectedThread().GetFrameAtIndex(0).GetVariables(True, True, True, False)
+    for variable in variables:
+      vim.eval("append('$', %s)" % to_vim_string(str(variable).replace("\n", "")))
     vim.command("normal ggdd")
 
   def launch(self):
@@ -150,6 +161,24 @@ int main()
     self.assertEquals(
       vim.eval('synIDattr(synID(3, 3, 1),"name")'),
       "lldb_current_location")
+
+  def test_variables_window_shows_locals(self):
+    source = """int main()
+{
+  int i = 42;
+  return i;
+}
+"""
+
+    plugin = LLDBPlugin()
+    plugin.create_target(self.create_target_and_edit_source(source))
+    plugin.add_breakpoint("main")
+    plugin.launch()
+    plugin.step_into()
+    plugin.show_locals_window()
+    self.assertEquals(
+        vim.eval("getline(1, '$')"),
+        ["(int) i = 42"])
 
 
 def run_lldb_tests():
