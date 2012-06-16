@@ -68,7 +68,7 @@ class LLDBPlugin(object):
 
 class TestLLDBPlugin(unittest.TestCase):
 
-  def setUp(self):
+  def create_target_and_edit_source(self):
     c_source = """int f()
 {
   return 0;
@@ -81,43 +81,43 @@ int main()
 """
 
     temp_dir = tempfile.mkdtemp()
-    self.source_filename = os.path.join(temp_dir, "main.c")
-    with open(self.source_filename, "w") as f:
+    source_filename = os.path.join(temp_dir, "main.c")
+    with open(source_filename, "w") as f:
       f.write(c_source)
 
-    self.target_filename = os.path.join(temp_dir, "binary")
-    os.system("clang -g -x c %s -o %s" % (self.source_filename, self.target_filename))
+    target_filename = os.path.join(temp_dir, "binary")
+    os.system("clang -g -x c %s -o %s" % (source_filename, target_filename))
 
     vim.command("bufdo! bdelete!")
-    vim.command("e %s" % self.source_filename)
+    vim.command("e %s" % source_filename)
 
-
+    return target_filename
 
   def test_can_run_target(self):
     plugin = LLDBPlugin()
-    plugin.create_target(self.target_filename)
+    plugin.create_target(self.create_target_and_edit_source())
 
   def test_breakpoint_list_is_initially_empty(self):
     plugin = LLDBPlugin()
-    plugin.create_target(self.target_filename)
+    plugin.create_target(self.create_target_and_edit_source())
     self.assertEquals(
       list(plugin.breakpoint_list()), [])
 
   def test_can_add_breakpoint(self):
     plugin = LLDBPlugin()
-    plugin.create_target(self.target_filename)
+    plugin.create_target(self.create_target_and_edit_source())
     plugin.add_breakpoint("main")
 
   def test_breakpoint_list_contains_added_breakoint(self):
     plugin = LLDBPlugin()
-    plugin.create_target(self.target_filename)
+    plugin.create_target(self.create_target_and_edit_source())
     plugin.add_breakpoint("main")
     self.assertNotEquals(
       list(plugin.breakpoint_list()), [])
 
   def test_breakpoint_window_shows_breakpoint(self):
     plugin = LLDBPlugin()
-    plugin.create_target(self.target_filename)
+    plugin.create_target(self.create_target_and_edit_source())
     plugin.add_breakpoint("main")
     plugin.show_breakpoint_window()
     self.assertEquals(
@@ -126,7 +126,7 @@ int main()
 
   def test_highlight_current_location(self):
     plugin = LLDBPlugin()
-    plugin.create_target(self.target_filename)
+    plugin.create_target(self.create_target_and_edit_source())
     plugin.add_breakpoint("main")
     plugin.launch()
     self.assertEquals(
@@ -135,7 +135,7 @@ int main()
 
   def test_step_into(self):
     plugin = LLDBPlugin()
-    plugin.create_target(self.target_filename)
+    plugin.create_target(self.create_target_and_edit_source())
     plugin.add_breakpoint("main")
     plugin.launch()
     plugin.step_into()
