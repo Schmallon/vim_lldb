@@ -4,10 +4,18 @@ import time
 import tempfile
 import unittest
 import vim
+import threading
 
 
 def to_vim_string(string):
   return "'" + str(string).replace("\\", "\\\\").replace('"', '\\"') + "'"
+
+def is_done_after(function, seconds):
+  thread = threading.Thread(target = function)
+  thread.start()
+  #thread.join(seconds)
+  return not thread.isAlive()
+
 
 class LLDBPlugin(object):
 
@@ -58,6 +66,12 @@ class LLDBPlugin(object):
   def launch(self):
     self.process = self.target.LaunchSimple(None, None, os.getcwd())
     self.highlight_current_location()
+
+  def kill(self):
+    self.process.Kill()
+
+  def do_continue(self):
+    self.process.Continue()
 
   def step_into(self):
     self.process.GetSelectedThread().StepInto()
@@ -180,6 +194,23 @@ int main()
         vim.eval("getline(1, '$')"),
         ["(int) i = 42"])
 
+  def test_launch_does_not_block(self):
+
+
+    source = """int main()
+{
+  for (;;){}
+  return 0;
+}
+"""
+    plugin = LLDBPlugin()
+    plugin.create_target(self.create_target_and_edit_source(source))
+    plugin.add_breakpoint("main")
+    plugin.launch()
+    done = is_done_after(plugin.do_continue, 3)
+    if not done:
+      plugin.kill()
+      self.fail("Plugin seems to block")
 
 def run_lldb_tests():
   suite = unittest.TestLoader().loadTestsFromTestCase(TestLLDBPlugin)
