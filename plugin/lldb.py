@@ -69,14 +69,9 @@ class LLDBPlugin(object):
 class TestLLDBPlugin(unittest.TestCase):
 
   def default_source(self):
-    return """int f()
+    return """int main()
 {
   return 0;
-}
-
-int main()
-{
-  return f();
 }
 """
 
@@ -124,7 +119,7 @@ int main()
     plugin.show_breakpoint_window()
     self.assertEquals(
         vim.eval("getline(1, '$')"),
-        ["main.c:8:10"])
+        ["main.c:3:3"])
 
   def test_highlight_current_location(self):
     plugin = LLDBPlugin()
@@ -132,12 +127,23 @@ int main()
     plugin.add_breakpoint("main")
     plugin.launch()
     self.assertEquals(
-      vim.eval('synIDattr(synID(8, 10, 1),"name")'),
+      vim.eval('synIDattr(synID(3, 3, 1),"name")'),
       "lldb_current_location")
 
   def test_step_into(self):
+    source = """int f()
+{
+  return 0;
+}
+
+int main()
+{
+  return f();
+}
+"""
+
     plugin = LLDBPlugin()
-    plugin.create_target(self.create_target_and_edit_source(self.default_source()))
+    plugin.create_target(self.create_target_and_edit_source(source))
     plugin.add_breakpoint("main")
     plugin.launch()
     plugin.step_into()
