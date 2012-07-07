@@ -118,6 +118,13 @@ class LLDBPlugin(object):
     vim.eval("append('$', '(lldb) ')")
     vim.command("normal G")
 
+  def show_all_windows(self):
+    self.show_command_line()
+    vim.command("new")
+    self.show_locals_window()
+    vim.command("vnew")
+    self.show_breakpoint_window()
+
 
 class TestLLDBPlugin(unittest.TestCase):
 
@@ -264,6 +271,12 @@ int main()
         ["error: 'foo' is not a valid command.", "(lldb) "],
         vim.eval("getline(1, '$')")[-2:])
 
+  def test_showing_all_windows_works(self):
+    plugin = LLDBPlugin()
+    plugin.show_all_windows()
+    self.assertEquals(
+        set(["lldb_breakpoints", "lldb_command_line", "lldb_variables"]),
+        set([os.path.basename(window.buffer.name) for window in vim.windows]))
 
 def run_lldb_tests():
   suite = unittest.TestLoader().loadTestsFromTestCase(TestLLDBPlugin)
