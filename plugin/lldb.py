@@ -110,6 +110,7 @@ class LLDBPlugin(object):
     for line in result.GetOutput().splitlines(False):
       vim.current.buffer.append(line)
     vim.eval("append('$', '(lldb) ')")
+    vim.command("normal G")
 
 
 class TestLLDBPlugin(unittest.TestCase):
@@ -240,6 +241,15 @@ int main()
     self.assertEquals(
         vim.eval("getline(1, '$')")[-2:],
         ["For more information on any particular command, try 'help <command-name>'.", "(lldb) "])
+
+  def test_after_entering_command_cursor_is_on_last_line(self):
+    plugin = LLDBPlugin()
+    plugin.show_command_line()
+    vim.command("normal Ahelp\r")
+    self.assertEquals(
+        len(vim.current.buffer),
+        vim.current.window.cursor[0])
+
 
 def run_lldb_tests():
   suite = unittest.TestLoader().loadTestsFromTestCase(TestLLDBPlugin)
