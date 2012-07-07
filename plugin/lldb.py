@@ -26,20 +26,20 @@ class LLDBPlugin(object):
   def get_instance(cls, target_id):
     return [instance for instance in cls.all_instances if id(instance) == target_id][0]
 
+  def _target(self):
+    return self.debugger.GetSelectedTarget()
+
   def __init__(self):
     LLDBPlugin.all_instances.add(self)
-    self.target = None
     vim.command("highlight lldb_current_location ctermbg=6 gui=undercurl guisp=DarkCyan")
     self.debugger = lldb.SBDebugger.Create()
     self.debugger.SetAsync(False)
 
   def create_target(self, target_filename):
-    self.target = self.debugger.CreateTarget(target_filename)
-    if not self.target:
-      raise "Failed to get a target"
+    self.debugger.CreateTarget(target_filename)
 
   def breakpoint_list(self):
-    for breakpoint in self.target.breakpoint_iter():
+    for breakpoint in self._target().breakpoint_iter():
       for location in breakpoint:
         address = location.GetAddress()
         line_entry = address.GetLineEntry()
@@ -50,7 +50,7 @@ class LLDBPlugin(object):
         yield file_name + ":" + str(line) + ":" + str(column)
 
   def add_breakpoint(self, name):
-    self.target.BreakpointCreateByName(name)
+    self._target().BreakpointCreateByName(name)
 
   def _edit_buffer_named(self, buffer_name):
     buffer_number = vim.eval("bufnr('%s', 1)" % buffer_name)
@@ -72,7 +72,7 @@ class LLDBPlugin(object):
     vim.command("normal ggdd")
 
   def launch(self):
-    self.process = self.target.LaunchSimple(None, None, os.getcwd())
+    self.process = self._target().LaunchSimple(None, None, os.getcwd())
     self.highlight_current_location()
 
   def kill(self):
