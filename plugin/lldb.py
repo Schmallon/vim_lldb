@@ -29,6 +29,9 @@ class LLDBPlugin(object):
   def _target(self):
     return self.debugger.GetSelectedTarget()
 
+  def _process(self):
+    return self._target().GetProcess()
+
   def __init__(self):
     LLDBPlugin.all_instances.add(self)
     vim.command("highlight lldb_current_location ctermbg=6 gui=undercurl guisp=DarkCyan")
@@ -63,31 +66,30 @@ class LLDBPlugin(object):
       #vim.eval("append('$', %s)" % "foo")#to_vim_string(breakpoint))
     vim.command("normal ggdd")
 
-
   def show_locals_window(self):
     self._edit_buffer_named('lldb_variables')
-    variables = self.process.GetSelectedThread().GetFrameAtIndex(0).GetVariables(True, True, True, False)
+    variables = self._process().GetSelectedThread().GetFrameAtIndex(0).GetVariables(True, True, True, False)
     for variable in variables:
       vim.eval("append('$', %s)" % to_vim_string(str(variable).replace("\n", "")))
     vim.command("normal ggdd")
 
   def launch(self):
-    self.process = self._target().LaunchSimple(None, None, os.getcwd())
+    self._target().LaunchSimple(None, None, os.getcwd())
     self.highlight_current_location()
 
   def kill(self):
-    self.process.Kill()
+    self._process().Kill()
 
   def do_continue(self):
-    self.process.Continue()
+    self._process().Continue()
 
   def step_into(self):
-    self.process.GetSelectedThread().StepInto()
+    self._process().GetSelectedThread().StepInto()
     self.highlight_current_location()
 
   def highlight_current_location(self):
     vim.command("syntax clear lldb_current_location")
-    for thread in self.process:
+    for thread in self._process():
       frame = thread.GetFrameAtIndex(0)
       line_entry = frame.GetLineEntry()
       line = line_entry.GetLine()
