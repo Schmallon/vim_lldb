@@ -103,12 +103,16 @@ class LLDBPlugin(object):
     vim.command("imap <buffer> <CR> <ESC>:python LLDBPlugin.get_instance(%s).entered_command()<CR>" % id(self))
     vim.command("normal A")
 
+  def _append_lines(self, string):
+    for line in string.splitlines(False):
+      vim.current.buffer.append(line)
+
   def entered_command(self):
     command_line = vim.current.line[:].replace("(lldb)", "")
     result = lldb.SBCommandReturnObject()
     self.debugger.GetCommandInterpreter().HandleCommand(command_line, result)
-    for line in result.GetOutput().splitlines(False):
-      vim.current.buffer.append(line)
+    self._append_lines(result.GetOutput())
+    self._append_lines(result.GetError())
     vim.eval("append('$', '(lldb) ')")
     vim.command("normal G")
 
@@ -249,6 +253,14 @@ int main()
     self.assertEquals(
         len(vim.current.buffer),
         vim.current.window.cursor[0])
+
+  def test_error_messages_are_shown(self):
+    plugin = LLDBPlugin()
+    plugin.show_command_line()
+    vim.command("normal Afoo\r")
+    self.assertEquals(
+        ["error: 'foo' is not a valid command.", "(lldb) "],
+        vim.eval("getline(1, '$')")[-2:])
 
 
 def run_lldb_tests():
