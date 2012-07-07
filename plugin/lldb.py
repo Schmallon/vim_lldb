@@ -107,7 +107,8 @@ class LLDBPlugin(object):
     command_line = vim.current.line[:].replace("(lldb)", "")
     result = lldb.SBCommandReturnObject()
     self.debugger.GetCommandInterpreter().HandleCommand(command_line, result)
-    vim.current.buffer.append(result.GetOutput())
+    for line in result.GetOutput().splitlines(False):
+      vim.current.buffer.append(line)
     vim.eval("append('$', '(lldb) ')")
 
 
@@ -231,6 +232,14 @@ int main()
     self.assertEquals(
         vim.eval("getline(1, '$')")[-2:],
         ["(int) $0 = 42", "(lldb) "])
+
+  def test_allow_multiline_output(self):
+    plugin = LLDBPlugin()
+    plugin.show_command_line()
+    vim.command("normal Ahelp\r")
+    self.assertEquals(
+        vim.eval("getline(1, '$')")[-2:],
+        ["For more information on any particular command, try 'help <command-name>'.", "(lldb) "])
 
 def run_lldb_tests():
   suite = unittest.TestLoader().loadTestsFromTestCase(TestLLDBPlugin)
