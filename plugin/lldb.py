@@ -5,6 +5,7 @@ import tempfile
 import unittest
 import vim
 import threading
+import weakref
 
 
 def to_vim_string(string):
@@ -19,14 +20,21 @@ def is_done_after(function, seconds):
 
 class LLDBPlugin(object):
 
+  all_instances = weakref.WeakSet()
+
+  @classmethod
+  def get_instance(cls, target_id):
+    return [instance for instance in cls.all_instances if id(instance) == target_id][0]
+
   def __init__(self):
+    LLDBPlugin.all_instances.add(self)
     self.target = None
     vim.command("highlight lldb_current_location ctermbg=6 gui=undercurl guisp=DarkCyan")
+    self.debugger = lldb.SBDebugger.Create()
+    self.debugger.SetAsync(False)
 
   def create_target(self, target_filename):
-    debugger = lldb.SBDebugger.Create()
-    debugger.SetAsync(False)
-    self.target = debugger.CreateTarget(target_filename)
+    self.target = self.debugger.CreateTarget(target_filename)
     if not self.target:
       raise "Failed to get a target"
 
@@ -88,7 +96,19 @@ class LLDBPlugin(object):
           + str(column) + 'c' + '.*' # + '\%' + str(5) + 'c'
       vim.command("syntax match lldb_current_location /%s/" % pattern)
 
+  def show_command_line(self):
+    self._edit_buffer_named('lldb_command_line')
+    vim.eval("append('$', '(lldb) ')")
+    vim.command("normal ggdd")
+    vim.command("imap <buffer> <CR> <ESC>:python LLDBPlugin.get_instance(%s).entered_command()<CR>" % id(self))
+    vim.command("normal A")
 
+  def entered_command(self):
+    command_line = vim.current.line[:].replace("(lldb)", "")
+    result = lldb.SBCommandReturnObject()
+    self.debugger.GetCommandInterpreter().HandleCommand(command_line, result)
+    vim.current.buffer.append(result.GetOutput())
+    vim.eval("append('$', '(lldb) ')")
 
 
 class TestLLDBPlugin(unittest.TestCase):
@@ -100,6 +120,10 @@ class TestLLDBPlugin(unittest.TestCase):
 }
 """
 
+  def setUp(self):
+    last_buffer = vim.eval("bufnr('$')")
+    vim.command("0,%s bdelete!" % last_buffer)
+
   def create_target_and_edit_source(self, source):
 
     temp_dir = tempfile.mkdtemp()
@@ -110,7 +134,6 @@ class TestLLDBPlugin(unittest.TestCase):
     target_filename = os.path.join(temp_dir, "binary")
     os.system("clang -g -x c %s -o %s" % (source_filename, target_filename))
 
-    vim.command("bufdo! bdelete!")
     vim.command("e %s" % source_filename)
 
     return target_filename
@@ -194,23 +217,20 @@ int main()
         vim.eval("getline(1, '$')"),
         ["(int) i = 42"])
 
-  def test_launch_does_not_block(self):
-
-
-    source = """int main()
-{
-  for (;;){}
-  return 0;
-}
-"""
+  def test_show_command_line(self):
     plugin = LLDBPlugin()
-    plugin.create_target(self.create_target_and_edit_source(source))
-    plugin.add_breakpoint("main")
-    plugin.launch()
-    done = is_done_after(plugin.do_continue, 3)
-    if not done:
-      plugin.kill()
-      self.fail("Plugin seems to block")
+    plugin.show_command_line()
+    self.assertEquals(
+        vim.eval("getline(1, '$')"),
+        ["(lldb) "])
+
+  def test_enter_command_in_command_line(self):
+    plugin = LLDBPlugin()
+    plugin.show_command_line()
+    vim.command("normal Aprint 42\r")
+    self.assertEquals(
+        vim.eval("getline(1, '$')")[-2:],
+        ["(int) $0 = 42", "(lldb) "])
 
 def run_lldb_tests():
   suite = unittest.TestLoader().loadTestsFromTestCase(TestLLDBPlugin)
