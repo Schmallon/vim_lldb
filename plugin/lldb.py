@@ -73,7 +73,7 @@ class LLDBPlugin(object):
   def add_breakpoint(self, name):
     self._target().BreakpointCreateByName(name)
 
-  def _edit_buffer_named(self, buffer_name):
+  def _clear_and_edit_buffer_named(self, buffer_name):
     if has_window_for_buffer_named(buffer_name):
       enter_window_for_buffer_named(buffer_name)
     else:
@@ -82,21 +82,21 @@ class LLDBPlugin(object):
     vim.command("normal ggVGd")
 
   def show_breakpoint_window(self):
-    self._edit_buffer_named('lldb_breakpoints')
+    self._clear_and_edit_buffer_named('lldb_breakpoints')
     for breakpoint in self.breakpoint_list():
       vim.eval("append('$', %s)" % to_vim_string(breakpoint))#to_vim_string(breakpoint))
       #vim.eval("append('$', %s)" % "foo")#to_vim_string(breakpoint))
     vim.command("normal ggdd")
 
   def show_locals_window(self):
-    self._edit_buffer_named('lldb_variables')
+    self._clear_and_edit_buffer_named('lldb_variables')
     variables = self._process().GetSelectedThread().GetFrameAtIndex(0).GetVariables(True, True, True, False)
     for variable in variables:
       vim.eval("append('$', %s)" % to_vim_string(str(variable).replace("\n", "")))
     vim.command("normal ggdd")
 
   def show_code_window(self):
-    self._edit_buffer_named('lldb_code')
+    self._clear_and_edit_buffer_named('lldb_code')
 
   def launch(self):
     self._target().LaunchSimple(None, None, os.getcwd())
@@ -124,7 +124,7 @@ class LLDBPlugin(object):
       vim.command("syntax match lldb_current_location /%s/" % pattern)
 
   def show_command_line(self):
-    self._edit_buffer_named('lldb_command_line')
+    self._clear_and_edit_buffer_named('lldb_command_line')
     vim.eval("append('$', '(lldb) ')")
     vim.command("normal ggdd")
     vim.command("imap <buffer> <CR> <ESC>:python LLDBPlugin.get_instance(%s).entered_command()<CR>" % id(self))
