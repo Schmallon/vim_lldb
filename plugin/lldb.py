@@ -79,6 +79,7 @@ class LLDBPlugin(object):
     else:
       buffer_number = vim.eval("bufnr('%s', 1)" % buffer_name)
       vim.command("buffer %s" % buffer_number)
+    vim.command("setlocal nospell")
     vim.command("normal ggVGd")
 
   def show_breakpoint_window(self):
@@ -320,6 +321,13 @@ int main()
     self.assertEquals(
         ["main.c:3:3"],
         list(existing_buffer_named("lldb_breakpoints")))
+
+  def test_windows_have_no_spell_checking(self):
+    plugin = LLDBPlugin()
+    plugin.show_all_windows()
+    for window in vim.windows:
+      enter_window_for_buffer_named(window.buffer.name)
+      self.assertEquals("0", vim.eval("&l:spell"))
 
 def run_lldb_tests():
   suite = unittest.TestLoader().loadTestsFromTestCase(TestLLDBPlugin)
