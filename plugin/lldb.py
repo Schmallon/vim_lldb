@@ -6,6 +6,7 @@ import unittest
 import vim
 import threading
 import weakref
+import itertools
 
 
 def to_vim_string(string):
@@ -17,6 +18,23 @@ def is_done_after(function, seconds):
   #thread.join(seconds)
   return not thread.isAlive()
 
+def existing_buffer_named(buffer_name):
+  def first(predicate, iter):
+    return next(itertools.ifilter(predicate, iter), None)
+  return first(lambda buffer: buffer.name and os.path.basename(buffer.name) == buffer_name, vim.buffers)
+
+def window_number_for_buffer_named(buffer_name):
+  buffer = existing_buffer_named(buffer_name)
+  if buffer:
+    return int(vim.eval('bufwinnr("%s")' % buffer.name))
+  else:
+    return -1
+
+def enter_window_for_buffer_named(buffer_name):
+  vim.command("%swincmd w" % window_number_for_buffer_named(buffer_name))
+
+def has_window_for_buffer_named(buffer_name):
+  return 0 <= window_number_for_buffer_named(buffer_name)
 
 class LLDBPlugin(object):
 
@@ -56,8 +74,12 @@ class LLDBPlugin(object):
     self._target().BreakpointCreateByName(name)
 
   def _edit_buffer_named(self, buffer_name):
-    buffer_number = vim.eval("bufnr('%s', 1)" % buffer_name)
-    vim.command("buffer %s" % buffer_number)
+    if has_window_for_buffer_named(buffer_name):
+      enter_window_for_buffer_named(buffer_name)
+    else:
+      buffer_number = vim.eval("bufnr('%s', 1)" % buffer_name)
+      vim.command("buffer %s" % buffer_number)
+    vim.command("normal ggVGd")
 
   def show_breakpoint_window(self):
     self._edit_buffer_named('lldb_breakpoints')
@@ -116,6 +138,10 @@ class LLDBPlugin(object):
     command_line = vim.current.line[:].replace("(lldb)", "")
     result = lldb.SBCommandReturnObject()
     self.debugger.GetCommandInterpreter().HandleCommand(command_line, result)
+
+    self.show_breakpoint_window()
+    enter_window_for_buffer_named("lldb_command_line")
+
     self._append_lines(result.GetOutput())
     self._append_lines(result.GetError())
     vim.eval("append('$', '(lldb) ')")
@@ -282,6 +308,18 @@ int main()
     self.assertEquals(
         set(["lldb_breakpoints", "lldb_command_line", "lldb_variables", "lldb_code"]),
         set([os.path.basename(window.buffer.name) for window in vim.windows]))
+
+  def test_manually_setting_a_breakpoint_updates_breakpoint_window(self):
+    plugin = LLDBPlugin()
+    plugin.create_target(self.create_target_and_edit_source(self.default_source()))
+    plugin.show_all_windows()
+
+    enter_window_for_buffer_named("lldb_command_line")
+    vim.command("normal Abreakpoint set --name main\r")
+
+    self.assertEquals(
+        ["main.c:3:3"],
+        list(existing_buffer_named("lldb_breakpoints")))
 
 def run_lldb_tests():
   suite = unittest.TestLoader().loadTestsFromTestCase(TestLLDBPlugin)
