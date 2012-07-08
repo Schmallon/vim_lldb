@@ -98,6 +98,12 @@ class LLDBPlugin(object):
 
   def show_code_window(self):
     self._clear_and_edit_buffer_named('lldb_code')
+    for thread in self._process():
+      frame = thread.GetFrameAtIndex(0)
+      file_spec = frame.GetLineEntry().GetFileSpec()
+      file_name = os.path.join(file_spec.GetDirectory(), file_spec.GetFilename())
+      vim.command("r %s" % file_name)
+      vim.command("normal ggdd")
 
   def launch(self):
     self._target().LaunchSimple(None, None, os.getcwd())
@@ -171,8 +177,7 @@ class TestLLDBPlugin(unittest.TestCase):
     last_buffer = vim.eval("bufnr('$')")
     vim.command("0,%s bdelete!" % last_buffer)
 
-  def create_target_and_edit_source(self, source):
-
+  def create_source_and_target(self, source):
     temp_dir = tempfile.mkdtemp()
     source_filename = os.path.join(temp_dir, "main.c")
     with open(source_filename, "w") as f:
@@ -180,9 +185,11 @@ class TestLLDBPlugin(unittest.TestCase):
 
     target_filename = os.path.join(temp_dir, "binary")
     os.system("clang -g -x c %s -o %s" % (source_filename, target_filename))
+    return source_filename, target_filename
 
+  def create_target_and_edit_source(self, source):
+    source_filename, target_filename = self.create_source_and_target(source)
     vim.command("e %s" % source_filename)
-
     return target_filename
 
   def test_can_run_target(self):
@@ -329,7 +336,25 @@ int main()
       enter_window_for_buffer_named(window.buffer.name)
       self.assertEquals("0", vim.eval("&l:spell"))
 
+  def test_source_window_shows_current_file(self):
+    plugin = LLDBPlugin()
+    source_filename, target_filename = self.create_source_and_target(self.default_source())
+    plugin.create_target(target_filename)
+    plugin.add_breakpoint("main")
+    plugin.launch()
+    plugin.show_all_windows()
+    self.assertEquals(
+      self.default_source().splitlines(False),
+      list(existing_buffer_named("lldb_code")))
+
 def run_lldb_tests():
   suite = unittest.TestLoader().loadTestsFromTestCase(TestLLDBPlugin)
+  with open("test_log.txt", "a") as f:
+    unittest.TextTestRunner(stream=f, verbosity=2).run(suite)
+
+def run_single_test(test_name):
+  loader = unittest.TestLoader()
+  loader.testMethodPrefix = test_name
+  suite = loader.loadTestsFromTestCase(TestLLDBPlugin)
   with open("test_log.txt", "a") as f:
     unittest.TextTestRunner(stream=f, verbosity=2).run(suite)
