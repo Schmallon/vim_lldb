@@ -73,6 +73,9 @@ class LLDBPlugin(object):
       vim.eval("append('$', %s)" % to_vim_string(str(variable).replace("\n", "")))
     vim.command("normal ggdd")
 
+  def show_code_window(self):
+    self._edit_buffer_named('lldb_code')
+
   def launch(self):
     self._target().LaunchSimple(None, None, os.getcwd())
     self.highlight_current_location()
@@ -120,6 +123,8 @@ class LLDBPlugin(object):
 
   def show_all_windows(self):
     self.show_command_line()
+    vim.command("new")
+    self.show_code_window()
     vim.command("new")
     self.show_locals_window()
     vim.command("vnew")
@@ -275,7 +280,7 @@ int main()
     plugin = LLDBPlugin()
     plugin.show_all_windows()
     self.assertEquals(
-        set(["lldb_breakpoints", "lldb_command_line", "lldb_variables"]),
+        set(["lldb_breakpoints", "lldb_command_line", "lldb_variables", "lldb_code"]),
         set([os.path.basename(window.buffer.name) for window in vim.windows]))
 
 def run_lldb_tests():
