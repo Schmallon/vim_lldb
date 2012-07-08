@@ -105,9 +105,15 @@ class LLDBPlugin(object):
       vim.command("r %s" % file_name)
       vim.command("normal ggdd")
 
+  def _update_windows(self):
+    self.show_locals_window()
+    self.show_breakpoint_window()
+    self.show_code_window()
+    self.highlight_current_location()
+
   def launch(self):
     self._target().LaunchSimple(None, None, os.getcwd())
-    self.highlight_current_location()
+    self._update_windows()
 
   def kill(self):
     self._process().Kill()
@@ -117,7 +123,7 @@ class LLDBPlugin(object):
 
   def step_into(self):
     self._process().GetSelectedThread().StepInto()
-    self.highlight_current_location()
+    self._update_windows()
 
   def highlight_current_location(self):
     vim.command("syntax clear lldb_current_location")
@@ -146,7 +152,7 @@ class LLDBPlugin(object):
     result = lldb.SBCommandReturnObject()
     self.debugger.GetCommandInterpreter().HandleCommand(command_line, result)
 
-    self.show_breakpoint_window()
+    self._update_windows()
     enter_window_for_buffer_named("lldb_command_line")
 
     self._append_lines(result.GetOutput())
@@ -342,7 +348,6 @@ int main()
     plugin.create_target(target_filename)
     plugin.add_breakpoint("main")
     plugin.launch()
-    plugin.show_all_windows()
     self.assertEquals(
       self.default_source().splitlines(False),
       list(existing_buffer_named("lldb_code")))
