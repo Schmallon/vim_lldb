@@ -36,6 +36,16 @@ def enter_window_for_buffer_named(buffer_name):
 def has_window_for_buffer_named(buffer_name):
   return 0 <= window_number_for_buffer_named(buffer_name)
 
+class BreakpointWindow(object):
+  def __init__(self, plugin):
+    self.plugin = plugin
+  def show(self):
+    self.plugin._clear_and_edit_buffer_named('lldb_breakpoints')
+    for breakpoint in self.plugin.breakpoint_list():
+      vim.eval("append('$', %s)" % to_vim_string(breakpoint))#to_vim_string(breakpoint))
+      #vim.eval("append('$', %s)" % "foo")#to_vim_string(breakpoint))
+    vim.command("normal ggdd")
+
 class LLDBPlugin(object):
 
   all_instances = weakref.WeakSet()
@@ -83,11 +93,7 @@ class LLDBPlugin(object):
     vim.command("normal ggVGd")
 
   def show_breakpoint_window(self):
-    self._clear_and_edit_buffer_named('lldb_breakpoints')
-    for breakpoint in self.breakpoint_list():
-      vim.eval("append('$', %s)" % to_vim_string(breakpoint))#to_vim_string(breakpoint))
-      #vim.eval("append('$', %s)" % "foo")#to_vim_string(breakpoint))
-    vim.command("normal ggdd")
+    BreakpointWindow(self).show()
 
   def show_locals_window(self):
     self._clear_and_edit_buffer_named('lldb_variables')
