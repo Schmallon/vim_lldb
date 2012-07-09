@@ -66,6 +66,7 @@ class CodeWindow(object):
       file_name = os.path.join(file_spec.GetDirectory(), file_spec.GetFilename())
       vim.command("r %s" % file_name)
       vim.command("normal ggdd")
+    self.plugin.highlight_current_location()
 
 class CommandLineWindow(object):
   def __init__(self, plugin):
@@ -120,7 +121,7 @@ class LLDBPlugin(object):
     vim.command("highlight lldb_current_location ctermbg=6 gui=undercurl guisp=DarkCyan")
     self.debugger = lldb.SBDebugger.Create()
     self.debugger.SetAsync(False)
-    self.windows = set()
+    self._windows = set()
 
   def create_target(self, target_filename):
     self.debugger.CreateTarget(target_filename)
@@ -148,20 +149,22 @@ class LLDBPlugin(object):
     vim.command("setlocal nospell")
     vim.command("normal ggVGd")
 
+  def _add_window(self, window):
+    self._windows.add(window)
+    window.show()
+
   def show_breakpoint_window(self):
-    BreakpointWindow(self).show()
+    self._add_window(BreakpointWindow(self))
 
   def show_locals_window(self):
-    LocalsWindow(self).show()
+    self._add_window(LocalsWindow(self))
 
   def show_code_window(self):
-    CodeWindow(self).show()
+    self._add_window(CodeWindow(self))
 
   def update_windows(self):
-    self.show_locals_window()
-    self.show_breakpoint_window()
-    self.show_code_window()
-    self.highlight_current_location()
+    for window in self._windows:
+      window.show()
 
   def launch(self):
     self._target().LaunchSimple(None, None, os.getcwd())
@@ -189,9 +192,7 @@ class LLDBPlugin(object):
       vim.command("syntax match lldb_current_location /%s/" % pattern)
 
   def show_command_line(self):
-    window = CommandLineWindow(self)
-    self.windows.add(window)
-    window.show()
+    self._add_window(CommandLineWindow(self))
 
   def show_all_windows(self):
     self.show_command_line()
@@ -264,6 +265,7 @@ class TestLLDBPlugin(unittest.TestCase):
 
   def test_highlight_current_location(self):
     plugin = LLDBPlugin()
+    plugin.show_code_window()
     plugin.create_target(self.create_target_and_edit_source(self.default_source()))
     plugin.add_breakpoint("main")
     plugin.launch()
@@ -284,6 +286,7 @@ int main()
 """
 
     plugin = LLDBPlugin()
+    plugin.show_code_window()
     plugin.create_target(self.create_target_and_edit_source(source))
     plugin.add_breakpoint("main")
     plugin.launch()
@@ -377,6 +380,7 @@ int main()
 
   def test_source_window_shows_current_file(self):
     plugin = LLDBPlugin()
+    plugin.show_code_window()
     source_filename, target_filename = self.create_source_and_target(self.default_source())
     plugin.create_target(target_filename)
     plugin.add_breakpoint("main")
