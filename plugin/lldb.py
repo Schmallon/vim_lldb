@@ -55,6 +55,18 @@ class LocalsWindow(object):
       vim.eval("append('$', %s)" % to_vim_string(str(variable).replace("\n", "")))
     vim.command("normal ggdd")
 
+class CodeWindow(object):
+  def __init__(self, plugin):
+    self.plugin = plugin
+  def show(self):
+    self.plugin.clear_and_edit_buffer_named('lldb_code')
+    for thread in self.plugin.process():
+      frame = thread.GetFrameAtIndex(0)
+      file_spec = frame.GetLineEntry().GetFileSpec()
+      file_name = os.path.join(file_spec.GetDirectory(), file_spec.GetFilename())
+      vim.command("r %s" % file_name)
+      vim.command("normal ggdd")
+
 class LLDBPlugin(object):
 
   all_instances = weakref.WeakSet()
@@ -108,13 +120,7 @@ class LLDBPlugin(object):
     LocalsWindow(self).show()
 
   def show_code_window(self):
-    self.clear_and_edit_buffer_named('lldb_code')
-    for thread in self.process():
-      frame = thread.GetFrameAtIndex(0)
-      file_spec = frame.GetLineEntry().GetFileSpec()
-      file_name = os.path.join(file_spec.GetDirectory(), file_spec.GetFilename())
-      vim.command("r %s" % file_name)
-      vim.command("normal ggdd")
+    CodeWindow(self).show()
 
   def _update_windows(self):
     self.show_locals_window()
