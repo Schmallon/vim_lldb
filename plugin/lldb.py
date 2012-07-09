@@ -378,7 +378,7 @@ int main()
       enter_window_for_buffer_named(window.buffer.name)
       self.assertEquals("0", vim.eval("&l:spell"))
 
-  def test_source_window_shows_current_file(self):
+  def test_code_window_shows_current_file(self):
     plugin = LLDBPlugin()
     plugin.show_code_window()
     source_filename, target_filename = self.create_source_and_target(self.default_source())
