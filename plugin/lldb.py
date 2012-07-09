@@ -45,6 +45,16 @@ class BreakpointWindow(object):
       vim.eval("append('$', %s)" % to_vim_string(breakpoint))
     vim.command("normal ggdd")
 
+class LocalsWindow(object):
+  def __init__(self, plugin):
+    self.plugin = plugin
+  def show(self):
+    self.plugin.clear_and_edit_buffer_named('lldb_variables')
+    variables = self.plugin.process().GetSelectedThread().GetFrameAtIndex(0).GetVariables(True, True, True, False)
+    for variable in variables:
+      vim.eval("append('$', %s)" % to_vim_string(str(variable).replace("\n", "")))
+    vim.command("normal ggdd")
+
 class LLDBPlugin(object):
 
   all_instances = weakref.WeakSet()
@@ -56,7 +66,7 @@ class LLDBPlugin(object):
   def _target(self):
     return self.debugger.GetSelectedTarget()
 
-  def _process(self):
+  def process(self):
     return self._target().GetProcess()
 
   def __init__(self):
@@ -95,15 +105,11 @@ class LLDBPlugin(object):
     BreakpointWindow(self).show()
 
   def show_locals_window(self):
-    self.clear_and_edit_buffer_named('lldb_variables')
-    variables = self._process().GetSelectedThread().GetFrameAtIndex(0).GetVariables(True, True, True, False)
-    for variable in variables:
-      vim.eval("append('$', %s)" % to_vim_string(str(variable).replace("\n", "")))
-    vim.command("normal ggdd")
+    LocalsWindow(self).show()
 
   def show_code_window(self):
     self.clear_and_edit_buffer_named('lldb_code')
-    for thread in self._process():
+    for thread in self.process():
       frame = thread.GetFrameAtIndex(0)
       file_spec = frame.GetLineEntry().GetFileSpec()
       file_name = os.path.join(file_spec.GetDirectory(), file_spec.GetFilename())
@@ -121,18 +127,18 @@ class LLDBPlugin(object):
     self._update_windows()
 
   def kill(self):
-    self._process().Kill()
+    self.process().Kill()
 
   def do_continue(self):
-    self._process().Continue()
+    self.process().Continue()
 
   def step_into(self):
-    self._process().GetSelectedThread().StepInto()
+    self.process().GetSelectedThread().StepInto()
     self._update_windows()
 
   def highlight_current_location(self):
     vim.command("syntax clear lldb_current_location")
-    for thread in self._process():
+    for thread in self.process():
       frame = thread.GetFrameAtIndex(0)
       line_entry = frame.GetLineEntry()
       line = line_entry.GetLine()
