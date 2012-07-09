@@ -36,49 +36,70 @@ def enter_window_for_buffer_named(buffer_name):
 def has_window_for_buffer_named(buffer_name):
   return 0 <= window_number_for_buffer_named(buffer_name)
 
+
+class InWindowForBufferNamed(object):
+  def __init__(self, buffer_name, prevent_editing):
+    self.buffer_name = buffer_name
+    self.prevent_editing = prevent_editing
+
+  def __enter__(self):
+    if has_window_for_buffer_named(self.buffer_name):
+      enter_window_for_buffer_named(self.buffer_name)
+    else:
+      buffer_number = vim.eval("bufnr('%s', 1)" % self.buffer_name)
+      vim.command("buffer %s" % buffer_number)
+    vim.command("setlocal nospell")
+    if self.prevent_editing:
+      vim.command("setlocal modifiable")
+    vim.command("normal ggVGd")
+
+  def __exit__(self, type, value, traceback):
+    if self.prevent_editing:
+      vim.command("setlocal nomodifiable")
+
 class BreakpointWindow(object):
   def __init__(self, plugin):
     self.plugin = plugin
   def show(self):
-    self.plugin.clear_and_edit_buffer_named('lldb_breakpoints')
-    for breakpoint in self.plugin.breakpoint_list():
-      vim.eval("append('$', %s)" % to_vim_string(breakpoint))
-    vim.command("normal ggdd")
+    with InWindowForBufferNamed('lldb_breakpoints', prevent_editing = True):
+      for breakpoint in self.plugin.breakpoint_list():
+        vim.eval("append('$', %s)" % to_vim_string(breakpoint))
+      vim.command("normal ggdd")
 
 class LocalsWindow(object):
   def __init__(self, plugin):
     self.plugin = plugin
   def show(self):
-    self.plugin.clear_and_edit_buffer_named('lldb_variables')
-    variables = self.plugin.process().GetSelectedThread().GetFrameAtIndex(0).GetVariables(True, True, True, False)
-    for variable in variables:
-      vim.eval("append('$', %s)" % to_vim_string(str(variable).replace("\n", "")))
-    vim.command("normal ggdd")
+    with InWindowForBufferNamed('lldb_variables', prevent_editing = True):
+      variables = self.plugin.process().GetSelectedThread().GetFrameAtIndex(0).GetVariables(True, True, True, False)
+      for variable in variables:
+        vim.eval("append('$', %s)" % to_vim_string(str(variable).replace("\n", "")))
+      vim.command("normal ggdd")
 
 class CodeWindow(object):
   def __init__(self, plugin):
     self.plugin = plugin
   def show(self):
-    self.plugin.clear_and_edit_buffer_named('lldb_code')
-    for thread in self.plugin.process():
-      frame = thread.GetFrameAtIndex(0)
-      file_spec = frame.GetLineEntry().GetFileSpec()
-      file_name = os.path.join(file_spec.GetDirectory(), file_spec.GetFilename())
-      vim.command("r %s" % file_name)
-      vim.command("normal ggdd")
-    self.plugin.highlight_current_location()
+    with InWindowForBufferNamed('lldb_code', prevent_editing = True):
+      for thread in self.plugin.process():
+        frame = thread.GetFrameAtIndex(0)
+        file_spec = frame.GetLineEntry().GetFileSpec()
+        file_name = os.path.join(file_spec.GetDirectory(), file_spec.GetFilename())
+        vim.command("r %s" % file_name)
+        vim.command("normal ggdd")
+      self.plugin.highlight_current_location()
 
 class CommandLineWindow(object):
   def __init__(self, plugin):
     self.plugin = plugin
 
   def show(self):
-    self.plugin.clear_and_edit_buffer_named('lldb_command_line')
-    vim.eval("append('$', '(lldb) ')")
-    vim.command("normal ggdd")
-    object_registry.register_object(self)
-    vim.command("imap <buffer> <CR> <ESC>:python object_registry.get_object(%s).entered_command()<CR>" % id(self))
-    vim.command("normal A")
+    with InWindowForBufferNamed('lldb_command_line', prevent_editing = False):
+      vim.eval("append('$', '(lldb) ')")
+      vim.command("normal ggdd")
+      object_registry.register_object(self)
+      vim.command("imap <buffer> <CR> <ESC>:python object_registry.get_object(%s).entered_command()<CR>" % id(self))
+      vim.command("normal A")
 
   def entered_command(self):
     command_line = vim.current.line[:].replace("(lldb)", "")
@@ -139,15 +160,6 @@ class LLDBPlugin(object):
 
   def add_breakpoint(self, name):
     self._target().BreakpointCreateByName(name)
-
-  def clear_and_edit_buffer_named(self, buffer_name):
-    if has_window_for_buffer_named(buffer_name):
-      enter_window_for_buffer_named(buffer_name)
-    else:
-      buffer_number = vim.eval("bufnr('%s', 1)" % buffer_name)
-      vim.command("buffer %s" % buffer_number)
-    vim.command("setlocal nospell")
-    vim.command("normal ggVGd")
 
   def _add_window(self, window):
     self._windows.add(window)
@@ -388,6 +400,14 @@ int main()
     self.assertEquals(
       self.default_source().splitlines(False),
       list(existing_buffer_named("lldb_code")))
+
+  def test_windows_are_not_modifiable(self):
+    plugin = LLDBPlugin()
+    plugin.show_all_windows()
+    for window in vim.windows:
+      enter_window_for_buffer_named(window.buffer.name)
+      self.assertEquals("0", vim.eval("&l:modifiable"))
+
 
 def run_lldb_tests():
   suite = unittest.TestLoader().loadTestsFromTestCase(TestLLDBPlugin)
