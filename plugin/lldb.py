@@ -67,13 +67,19 @@ class CodeWindow(object):
       vim.command("r %s" % file_name)
       vim.command("normal ggdd")
 
+class ObjectRegistry(object):
+  def __init__(self):
+    self.objects = weakref.WeakSet()
+
+  def get_object(self, target_id):
+    return [object for object in self.objects if id(object) == target_id][0]
+
+  def register_object(self, object):
+    self.objects.add(object)
+
+object_registry = ObjectRegistry()
+
 class LLDBPlugin(object):
-
-  all_instances = weakref.WeakSet()
-
-  @classmethod
-  def get_instance(cls, target_id):
-    return [instance for instance in cls.all_instances if id(instance) == target_id][0]
 
   def _target(self):
     return self.debugger.GetSelectedTarget()
@@ -82,7 +88,6 @@ class LLDBPlugin(object):
     return self._target().GetProcess()
 
   def __init__(self):
-    LLDBPlugin.all_instances.add(self)
     vim.command("highlight lldb_current_location ctermbg=6 gui=undercurl guisp=DarkCyan")
     self.debugger = lldb.SBDebugger.Create()
     self.debugger.SetAsync(False)
@@ -157,7 +162,8 @@ class LLDBPlugin(object):
     self.clear_and_edit_buffer_named('lldb_command_line')
     vim.eval("append('$', '(lldb) ')")
     vim.command("normal ggdd")
-    vim.command("imap <buffer> <CR> <ESC>:python LLDBPlugin.get_instance(%s).entered_command()<CR>" % id(self))
+    object_registry.register_object(self)
+    vim.command("imap <buffer> <CR> <ESC>:python object_registry.get_object(%s).entered_command()<CR>" % id(self))
     vim.command("normal A")
 
   def _append_lines(self, string):
