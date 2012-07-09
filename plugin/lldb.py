@@ -67,6 +67,35 @@ class CodeWindow(object):
       vim.command("r %s" % file_name)
       vim.command("normal ggdd")
 
+class CommandLineWindow(object):
+  def __init__(self, plugin):
+    self.plugin = plugin
+
+  def show(self):
+    self.plugin.clear_and_edit_buffer_named('lldb_command_line')
+    vim.eval("append('$', '(lldb) ')")
+    vim.command("normal ggdd")
+    object_registry.register_object(self)
+    vim.command("imap <buffer> <CR> <ESC>:python object_registry.get_object(%s).entered_command()<CR>" % id(self))
+    vim.command("normal A")
+
+  def entered_command(self):
+    command_line = vim.current.line[:].replace("(lldb)", "")
+    result = lldb.SBCommandReturnObject()
+    self.plugin.debugger.GetCommandInterpreter().HandleCommand(command_line, result)
+
+    self.plugin.update_windows()
+    enter_window_for_buffer_named("lldb_command_line")
+
+    self._append_lines(result.GetOutput())
+    self._append_lines(result.GetError())
+    vim.eval("append('$', '(lldb) ')")
+    vim.command("normal G")
+
+  def _append_lines(self, string):
+    for line in string.splitlines(False):
+      vim.current.buffer.append(line)
+
 class ObjectRegistry(object):
   def __init__(self):
     self.objects = weakref.WeakSet()
@@ -91,6 +120,7 @@ class LLDBPlugin(object):
     vim.command("highlight lldb_current_location ctermbg=6 gui=undercurl guisp=DarkCyan")
     self.debugger = lldb.SBDebugger.Create()
     self.debugger.SetAsync(False)
+    self.windows = set()
 
   def create_target(self, target_filename):
     self.debugger.CreateTarget(target_filename)
@@ -127,7 +157,7 @@ class LLDBPlugin(object):
   def show_code_window(self):
     CodeWindow(self).show()
 
-  def _update_windows(self):
+  def update_windows(self):
     self.show_locals_window()
     self.show_breakpoint_window()
     self.show_code_window()
@@ -135,7 +165,7 @@ class LLDBPlugin(object):
 
   def launch(self):
     self._target().LaunchSimple(None, None, os.getcwd())
-    self._update_windows()
+    self.update_windows()
 
   def kill(self):
     self.process().Kill()
@@ -145,7 +175,7 @@ class LLDBPlugin(object):
 
   def step_into(self):
     self.process().GetSelectedThread().StepInto()
-    self._update_windows()
+    self.update_windows()
 
   def highlight_current_location(self):
     vim.command("syntax clear lldb_current_location")
@@ -159,29 +189,9 @@ class LLDBPlugin(object):
       vim.command("syntax match lldb_current_location /%s/" % pattern)
 
   def show_command_line(self):
-    self.clear_and_edit_buffer_named('lldb_command_line')
-    vim.eval("append('$', '(lldb) ')")
-    vim.command("normal ggdd")
-    object_registry.register_object(self)
-    vim.command("imap <buffer> <CR> <ESC>:python object_registry.get_object(%s).entered_command()<CR>" % id(self))
-    vim.command("normal A")
-
-  def _append_lines(self, string):
-    for line in string.splitlines(False):
-      vim.current.buffer.append(line)
-
-  def entered_command(self):
-    command_line = vim.current.line[:].replace("(lldb)", "")
-    result = lldb.SBCommandReturnObject()
-    self.debugger.GetCommandInterpreter().HandleCommand(command_line, result)
-
-    self._update_windows()
-    enter_window_for_buffer_named("lldb_command_line")
-
-    self._append_lines(result.GetOutput())
-    self._append_lines(result.GetError())
-    vim.eval("append('$', '(lldb) ')")
-    vim.command("normal G")
+    window = CommandLineWindow(self)
+    self.windows.add(window)
+    window.show()
 
   def show_all_windows(self):
     self.show_command_line()
