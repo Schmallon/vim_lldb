@@ -87,7 +87,20 @@ class CodeWindow(object):
         file_name = os.path.join(file_spec.GetDirectory(), file_spec.GetFilename())
         vim.command("r %s" % file_name)
         vim.command("normal ggdd")
-      self.plugin.highlight_current_location()
+      self._highlight_current_location()
+
+
+  def _highlight_current_location(self):
+    vim.command("syntax clear lldb_current_location")
+    for thread in self.plugin.process():
+      frame = thread.GetFrameAtIndex(0)
+      line_entry = frame.GetLineEntry()
+      line = line_entry.GetLine()
+      column = line_entry.GetColumn()
+      pattern = '\%' + str(line) + 'l' + '\%' \
+          + str(column) + 'c' + '.*' # + '\%' + str(5) + 'c'
+      vim.command("syntax match lldb_current_location /%s/" % pattern)
+
 
 class CommandLineWindow(object):
   def __init__(self, plugin):
@@ -191,17 +204,6 @@ class LLDBPlugin(object):
   def step_into(self):
     self.process().GetSelectedThread().StepInto()
     self.update_windows()
-
-  def highlight_current_location(self):
-    vim.command("syntax clear lldb_current_location")
-    for thread in self.process():
-      frame = thread.GetFrameAtIndex(0)
-      line_entry = frame.GetLineEntry()
-      line = line_entry.GetLine()
-      column = line_entry.GetColumn()
-      pattern = '\%' + str(line) + 'l' + '\%' \
-          + str(column) + 'c' + '.*' # + '\%' + str(5) + 'c'
-      vim.command("syntax match lldb_current_location /%s/" % pattern)
 
   def show_command_line(self):
     self._add_window(CommandLineWindow(self))
