@@ -152,7 +152,7 @@ class LLDBPlugin(object):
     return self._target().GetProcess()
 
   def __init__(self):
-    vim.command("highlight lldb_current_location ctermbg=6 gui=undercurl guisp=DarkCyan")
+    vim.command("highlight lldb_current_location ctermbg=6 gui=undercurl guibg=green guisp=DarkCyan")
     self.debugger = lldb.SBDebugger.Create()
     self.debugger.SetAsync(False)
     self._windows = set()
