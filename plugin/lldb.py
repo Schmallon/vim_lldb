@@ -79,6 +79,8 @@ class LocalsWindow(object):
 class CodeWindow(object):
   def __init__(self, plugin):
     self.plugin = plugin
+    vim.command("highlight lldb_current_location ctermbg=6 gui=undercurl guibg=green guisp=DarkCyan")
+
   def show(self):
     with InWindowForBufferNamed('lldb_code', prevent_editing = True):
       for thread in self.plugin.process():
@@ -88,7 +90,6 @@ class CodeWindow(object):
         vim.command("r %s" % file_name)
         vim.command("normal ggdd")
       self._highlight_current_location()
-
 
   def _highlight_current_location(self):
     vim.command("syntax clear lldb_current_location")
@@ -152,7 +153,6 @@ class LLDBPlugin(object):
     return self._target().GetProcess()
 
   def __init__(self):
-    vim.command("highlight lldb_current_location ctermbg=6 gui=undercurl guibg=green guisp=DarkCyan")
     self.debugger = lldb.SBDebugger.Create()
     self.debugger.SetAsync(False)
     self._windows = set()
